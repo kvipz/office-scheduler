@@ -507,7 +507,8 @@
       gap: 16px;
     }
     .settings-btn { display: none; }          /* hidden on desktop */
-    .sidebar-collapsible { display: contents; } /* children join sidebar flex on desktop */
+    /* On desktop the collapsible fills the remaining sidebar height as a normal flex column */
+    .sidebar-collapsible { display: flex; flex-direction: column; gap: 16px; flex: 1; }
 
     /* ── Mobile ── */
     @media (max-width: 768px) {
@@ -618,6 +619,20 @@
       /* Calc + reset buttons full width */
       .calc-btn, .reset-btn { width: 100%; }
     }
+
+    /* ── Weekend toggle ── */
+    .wknd-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: .75rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .wknd-toggle input[type=checkbox] { accent-color: var(--vipin); cursor: pointer; width: 14px; height: 14px; }
+    .wknd-toggle:hover { color: var(--text); }
   </style>
 </head>
 <body>
@@ -713,7 +728,10 @@
   <main class="main">
     <div class="cal-title-row">
       <h2 id="cal-heading"></h2>
-      <span class="cal-hint" style="font-size:.78rem;color:var(--muted)">Click any working day to mark it</span>
+      <label class="wknd-toggle" title="Show Saturday & Sunday">
+        <input type="checkbox" id="wknd-chk" onchange="toggleWeekends(this.checked)" />
+        <span>Weekends</span>
+      </label>
     </div>
     <div class="cal-grid" id="cal-grid"></div>
     <div id="results-section"></div>
@@ -820,6 +838,7 @@
   let popupDateStr = null;
   // Per-month manual done overrides: { "2026-05": { vipin: 4, himangi: 2 }, … }
   const doneOverrides = {};
+  let showWeekends = false;  // hide weekends by default for a cleaner 5-column view
 
   // ── Persistence ───────────────────────────────────────────────────────────
   const STORAGE_KEY = "office_sched_v1";
@@ -827,7 +846,7 @@
   function saveState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        curYear, curMonth, dayStates, doneOverrides,
+        curYear, curMonth, dayStates, doneOverrides, showWeekends,
       }));
     } catch (e) { console.warn("Could not save state:", e); }
   }
@@ -841,6 +860,7 @@
       if (s.curMonth)   curMonth = s.curMonth;
       if (s.dayStates)  Object.assign(dayStates, s.dayStates);
       if (s.doneOverrides) Object.assign(doneOverrides, s.doneOverrides);
+      if (s.showWeekends !== undefined) showWeekends = s.showWeekends;
     } catch (e) { console.warn("Could not load state:", e); }
   }
 
@@ -873,6 +893,7 @@
     if (!dayStates[ds]) dayStates[ds] = { holiday: true, holidayName: name };
   }
 
+  document.getElementById("wknd-chk").checked = showWeekends;
   renderCalendar();
   updateSidebar();
 
@@ -917,15 +938,31 @@
     saveState();
   }
 
+  // ── Weekend toggle ────────────────────────────────────────────────────────
+  function toggleWeekends(val) {
+    showWeekends = val;
+    renderCalendar();
+    saveState();
+  }
+
   // ── Calendar render ───────────────────────────────────────────────────────
   function renderCalendar() {
     const grid = document.getElementById("cal-grid");
     document.getElementById("cal-heading").textContent = `${MONTH_NAMES[curMonth-1]} ${curYear}`;
     document.getElementById("month-label").textContent  = `${MONTH_NAMES[curMonth-1].slice(0,3)} ${curYear}`;
 
-    let html = WEEKDAYS.map(d => `<div class="cal-head">${d}</div>`).join("");
+    const hideWknd = !showWeekends;
+    const headers  = hideWknd
+      ? ["Mon","Tue","Wed","Thu","Fri"]
+      : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    grid.style.gridTemplateColumns = `repeat(${headers.length}, 1fr)`;
 
-    const offset = firstWeekday(curYear, curMonth);
+    let html = headers.map(d => `<div class="cal-head">${d}</div>`).join("");
+
+    const fw = firstWeekday(curYear, curMonth);  // Mon=0…Sun=6
+    // In 5-col mode, if the month starts on Sat/Sun those days are skipped entirely;
+    // the first visible day is the next Monday so no leading blank cells are needed.
+    const offset = hideWknd ? (fw < 5 ? fw : 0) : fw;
     for (let i = 0; i < offset; i++) html += `<div class="cal-cell empty"></div>`;
 
     const last = daysInMonth(curYear, curMonth);
@@ -934,6 +971,8 @@
       const jsDay = makeDate(curYear, curMonth, day);
       const dow   = (jsDay.getDay() + 6) % 7;  // Mon=0…Sun=6
       const isWknd = dow >= 5;
+
+      if (hideWknd && isWknd) continue;  // skip Sat/Sun entirely in 5-col mode
 
       if (isWknd) {
         html += `<div class="cal-cell weekend"><div class="cell-top"><span class="cell-num">${day}</span></div></div>`;
