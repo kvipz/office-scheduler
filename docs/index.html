@@ -1020,7 +1020,7 @@
     document.getElementById("h-leaves").textContent = hLeaves;
 
     // Done count: calendar attendance wins if any marked; else this month's manual override
-    const mk = `${curYear}-${String(curMonth).padStart(2,"00")}`;
+    const mk = `${curYear}-${String(curMonth).padStart(2,"0")}`;
     const vOverride = doneOverrides[mk]?.vipin   ?? 0;
     const hOverride = doneOverrides[mk]?.himangi ?? 0;
     const vDone = vAtt > 0 ? vAtt : vOverride;
