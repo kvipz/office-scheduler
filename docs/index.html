@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Office Scheduler</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f0f4f9;
+      --card:      #ffffff;
+      --border:    #e2e8f0;
+      --text:      #1e293b;
+      --muted:     #64748b;
+      --vipin:     #2563eb;
+      --vipin-bg:  #dbeafe;
+      --himangi:   #db2777;
+      --himangi-bg:#fce7f3;
+      --both:      #7c3aed;
+      --both-bg:   #ede9fe;
+      --hol:       #d97706;
+      --hol-bg:    #fef3c7;
+      --leave-bg:  #f1f5f9;
+      --wknd:      #94a3b8;
+      --wknd-bg:   #f8fafc;
+      --today:     #f59e0b;
+      --green:     #16a34a;
+      --red:       #dc2626;
+      --r:         10px;
+      --shadow:    0 1px 4px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Shell ── */
+    .shell {
+      display: grid;
+      grid-template-columns: 270px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 20px 16px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .brand { font-size: 1.05rem; font-weight: 800; color: var(--text); letter-spacing: -.02em; }
+    .brand span { color: var(--vipin); }
+
+    /* Month nav */
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg);
+      border-radius: var(--r);
+      padding: 6px 8px;
+    }
+    .month-nav button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2rem;
+      color: var(--muted);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .12s;
+      flex-shrink: 0;
+    }
+    .month-nav button:hover { background: var(--border); color: var(--text); }
+    #month-label { flex: 1; text-align: center; font-weight: 700; font-size: .9rem; }
+
+    /* Person blocks */
+    .person-block {
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .person-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      font-weight: 700;
+      font-size: .88rem;
+    }
+    .person-head.vipin   { background: var(--vipin-bg);   color: var(--vipin); }
+    .person-head.himangi { background: var(--himangi-bg); color: var(--himangi); }
+
+    .person-rows { padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+    .prow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .82rem;
+    }
+    .prow .pk { color: var(--muted); }
+    .prow .pv { font-weight: 700; }
+    .prow .pv.warn { color: var(--red); }
+    .prow .pv.ok   { color: var(--green); }
+
+    .done-wrap { display: flex; align-items: center; gap: 6px; }
+    .done-wrap input {
+      width: 52px;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: .82rem;
+      font-weight: 700;
+      text-align: center;
+      background: #f8fafc;
+      color: var(--text);
+    }
+    .done-wrap input:focus { outline: none; border-color: var(--vipin); }
+    .from-cal-badge {
+      font-size: .65rem;
+      background: #dcfce7;
+      color: #15803d;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-weight: 700;
+    }
+
+    .progress-bar-wrap { padding: 4px 12px 10px; }
+    .progress-track { background: var(--bg); border-radius: 99px; height: 6px; overflow: hidden; }
+    .progress-fill  { height: 100%; border-radius: 99px; transition: width .4s; }
+    .progress-fill.vipin   { background: var(--vipin); }
+    .progress-fill.himangi { background: var(--himangi); }
+    .progress-label { font-size: .7rem; color: var(--muted); text-align: right; margin-top: 3px; }
+
+    /* Legend */
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+    .leg-item { display: flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--muted); }
+    .leg-sw { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .leg-sw.vipin   { background: var(--vipin); }
+    .leg-sw.himangi { background: var(--himangi); }
+    .leg-sw.both    { background: var(--both); }
+    .leg-sw.hol     { background: var(--hol); }
+    .leg-sw.leave   { background: #cbd5e1; }
+
+    /* Calculate button */
+    .calc-btn {
+      margin-top: auto;
+      padding: 11px;
+      background: var(--vipin);
+      color: #fff;
+      border: none;
+      border-radius: var(--r);
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s;
+      letter-spacing: .01em;
+    }
+    .calc-btn:hover   { opacity: .88; }
+    .calc-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .reset-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: .72rem;
+      cursor: pointer;
+      padding: 2px 0;
+      text-align: center;
+      transition: color .12s;
+    }
+    .reset-btn:hover { color: var(--red); }
+
+    .side-divider { border: none; border-top: 1px solid var(--border); }
+
+    /* ── Main ── */
+    .main {
+      padding: 24px 28px 48px;
+      min-width: 0;
+    }
+
+    /* Calendar header */
+    .cal-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .cal-title-row h2 { font-size: 1.3rem; font-weight: 800; }
+
+    /* Calendar grid */
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+
+    .cal-head {
+      text-align: center;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      padding-bottom: 6px;
+    }
+
+    .cal-cell {
+      border-radius: 8px;
+      min-height: 72px;
+      padding: 7px 8px 6px;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+      transition: box-shadow .12s, border-color .12s;
+      user-select: none;
+    }
+    .cal-cell:hover:not(.weekend):not(.empty) {
+      box-shadow: 0 0 0 2px var(--vipin);
+      border-color: var(--vipin);
+      z-index: 1;
+    }
+    .cal-cell.empty   { cursor: default; background: transparent; border-color: transparent; }
+    .cal-cell.weekend { cursor: default; background: var(--wknd-bg); }
+    .cal-cell.working { background: var(--card); border-color: var(--border); }
+    .cal-cell.holiday { background: var(--hol-bg); border-color: #fcd34d; }
+    .cal-cell.both-leave { background: #f1f5f9; border-color: #cbd5e1; }
+    .cal-cell.vipin-leave   { background: #eff6ff; border-color: #bfdbfe; }
+    .cal-cell.himangi-leave { background: #fdf2f8; border-color: #fbcfe8; }
+    .cal-cell.past  { opacity: .6; }
+    .cal-cell.today { box-shadow: 0 0 0 2px var(--today) !important; border-color: var(--today) !important; opacity: 1; }
+
+    .cell-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    .cell-num {
+      font-size: .88rem;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--text);
+    }
+    .cal-cell.weekend .cell-num { color: var(--wknd); }
+    .cal-cell.past .cell-num    { color: var(--muted); }
+
+    .cell-flags { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
+    .flag {
+      font-size: .55rem;
+      font-weight: 800;
+      padding: 1px 3px;
+      border-radius: 3px;
+      line-height: 1.4;
+      text-transform: uppercase;
+    }
+    .flag.vl { background: var(--vipin); color: #fff; }
+    .flag.hl { background: var(--himangi); color: #fff; }
+
+    .cell-hol-name {
+      font-size: .62rem;
+      font-weight: 600;
+      color: var(--hol);
+      line-height: 1.2;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .cell-bottom { margin-top: auto; display: flex; gap: 3px; flex-wrap: wrap; }
+
+    /* Assignment badges (after calculate) */
+    .assign-badge {
+      font-size: .62rem;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .assign-badge.vipin   { background: var(--vipin);   color: #fff; }
+    .assign-badge.himangi { background: var(--himangi); color: #fff; }
+    .assign-badge.both    { background: var(--both);    color: #fff; }
+
+    /* Attendance marks */
+    .att-mark {
+      font-size: .65rem;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .att-mark.v-yes { background: var(--vipin-bg);   color: var(--vipin); }
+    .att-mark.h-yes { background: var(--himangi-bg); color: var(--himangi); }
+    .att-mark.v-no  { background: #fee2e2; color: var(--red); }
+    .att-mark.h-no  { background: #fee2e2; color: var(--red); }
+
+    /* Plan marks — outlined, future committed days */
+    .plan-mark {
+      font-size: .62rem;
+      font-weight: 800;
+      padding: 1px 4px;
+      border-radius: 4px;
+      border: 1.5px solid;
+      background: transparent;
+    }
+    .plan-mark.vp { color: var(--vipin);   border-color: var(--vipin); }
+    .plan-mark.hp { color: var(--himangi); border-color: var(--himangi); }
+    .plan-mark.bp { color: var(--both);    border-color: var(--both); }
+
+    /* ── Results ── */
+    .results-section {
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+    .stat-card .s-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+    .stat-card .s-value { font-size: 1.6rem; font-weight: 800; }
+    .stat-card .s-sub   { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+
+    .assigned-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+    }
+    .assigned-card h3 { font-size: .95rem; font-weight: 700; margin-bottom: 12px; }
+    .assigned-list { display: flex; flex-direction: column; gap: 5px; }
+    .a-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      border-radius: 7px;
+      font-size: .82rem;
+    }
+    .a-item.vipin   { background: var(--vipin-bg); }
+    .a-item.himangi { background: var(--himangi-bg); }
+    .a-item.both    { background: var(--both-bg); }
+    .a-item.past    { opacity: .55; }
+    .a-date  { font-weight: 700; min-width: 90px; }
+    .a-wday  { color: var(--muted); min-width: 84px; }
+    .a-who   { font-weight: 700; margin-left: auto; }
+    .a-item.vipin   .a-who { color: var(--vipin); }
+    .a-item.himangi .a-who { color: var(--himangi); }
+    .a-item.both    .a-who { color: var(--both); }
+    .fri-badge {
+      font-size: .62rem; background: #fef9c3; color: #92400e;
+      border-radius: 4px; padding: 1px 5px; font-weight: 700;
+    }
+    .warn-strip {
+      background: #fef2f2; border: 1px solid #fca5a5;
+      border-radius: 8px; padding: 10px 14px;
+      color: var(--red); font-size: .83rem; font-weight: 600;
+    }
+
+    /* ── Popup overlay ── */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.15);
+      z-index: 100;
+    }
+
+    /* ── Popup ── */
+    #popup {
+      display: none;
+      position: fixed;
+      z-index: 101;
+      width: 260px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+
+    .popup-hdr {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .popup-hdr .popup-title { font-weight: 700; font-size: .88rem; }
+    .popup-hdr button {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.1rem; color: var(--muted); line-height: 1;
+      width: 24px; height: 24px; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .popup-hdr button:hover { background: var(--bg); }
+
+    .popup-sec {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .popup-sec:last-child { border-bottom: none; }
+
+    .popup-sec-label {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .chk-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 3px 0;
+    }
+    .chk-row input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--vipin); cursor: pointer; }
+    .chk-row span { font-size: .84rem; }
+    .chk-row .cv { color: var(--vipin);   font-weight: 600; }
+    .chk-row .ch { color: var(--himangi); font-weight: 600; }
+
+    #pop-hol-name-wrap { padding-left: 23px; }
+    #pop-hol-name {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: .8rem;
+      background: #f8fafc;
+    }
+    #pop-hol-name:focus { outline: none; border-color: var(--hol); }
+
+    .attend-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .attend-row .ar-name { font-size: .84rem; font-weight: 600; }
+    .attend-row .ar-name.cv { color: var(--vipin); }
+    .attend-row .ar-name.ch { color: var(--himangi); }
+
+    .btn-grp { display: flex; gap: 4px; }
+    .attn-btn {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      background: #f8fafc;
+      font-size: .78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .12s;
+      color: var(--muted);
+    }
+    .attn-btn:hover { border-color: var(--vipin); color: var(--text); }
+    .attn-btn.active-yes { background: #dcfce7; border-color: var(--green); color: var(--green); }
+    .attn-btn.active-no  { background: #fee2e2; border-color: var(--red);   color: var(--red); }
+
+    .popup-clear {
+      display: block;
+      width: calc(100% - 28px);
+      margin: 10px 14px;
+      padding: 7px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .popup-clear:hover { background: #fee2e2; border-color: #fca5a5; color: var(--red); }
+
+    /* ── Sidebar topbar / collapsible (desktop: transparent wrappers) ── */
+    .sidebar-topbar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .settings-btn { display: none; }          /* hidden on desktop */
+    .sidebar-collapsible { display: contents; } /* children join sidebar flex on desktop */
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+      .shell { grid-template-columns: 1fr; }
+
+      /* Sidebar becomes a sticky top bar */
+      .sidebar {
+        position: sticky;
+        top: 0;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 2px 12px rgba(0,0,0,.07);
+        padding: 0;
+        gap: 0;
+        z-index: 50;
+      }
+
+      /* Topbar: brand + month nav + toggle in one row */
+      .sidebar-topbar {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 14px;
+      }
+      .sidebar-topbar .brand { flex: 0 0 auto; font-size: .95rem; }
+      .sidebar-topbar .month-nav {
+        flex: 1;
+        background: transparent;
+        padding: 0;
+        justify-content: center;
+      }
+      .settings-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        font-size: 1rem;
+        cursor: pointer;
+        color: var(--muted);
+        transition: background .12s;
+      }
+      .settings-btn:hover, .settings-btn.open { background: var(--vipin-bg); color: var(--vipin); border-color: var(--vipin); }
+
+      /* Collapsible body: hidden by default, slides open */
+      .sidebar-collapsible {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 14px 16px;
+        border-top: 1px solid var(--border);
+        max-height: 65vh;
+        overflow-y: auto;
+      }
+      .sidebar-collapsible.open { display: flex; }
+
+      /* Two-column person layout on mobile */
+      .people-row-mobile {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      /* Main area */
+      .main { padding: 12px 10px 40px; }
+      .cal-title-row { margin-bottom: 10px; }
+      .cal-hint { display: none; }
+      .cal-grid { gap: 3px; }
+
+      /* Smaller calendar cells */
+      .cal-cell { min-height: 52px; padding: 5px 3px 4px; border-radius: 6px; border-width: 1px; }
+      .cell-num { font-size: .78rem; }
+      .cell-hol-name { font-size: .52rem; }
+      .flag { font-size: .48rem; padding: 1px 2px; }
+      .assign-badge { font-size: .55rem; padding: 1px 3px; }
+      .att-mark, .plan-mark { font-size: .55rem; padding: 1px 3px; }
+      .cal-head { font-size: .65rem; padding-bottom: 5px; }
+
+      /* Popup as bottom sheet */
+      #popup {
+        width: 100% !important;
+        left: 0 !important;
+        top: auto !important;
+        bottom: 0 !important;
+        border-radius: 18px 18px 0 0;
+        max-height: 82vh;
+        overflow-y: auto;
+      }
+
+      /* Results */
+      .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat-card { padding: 12px; }
+      .stat-card .s-value { font-size: 1.3rem; }
+      .assigned-card { padding: 14px; }
+      .a-item { flex-wrap: wrap; gap: 6px; }
+      .a-wday { min-width: auto; }
+      .a-date { min-width: auto; }
+
+      /* Legend compact */
+      .legend { gap: 6px; }
+      .leg-item { font-size: .7rem; }
+
+      /* Calc + reset buttons full width */
+      .calc-btn, .reset-btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <!-- Always-visible topbar: brand + month nav + mobile settings toggle -->
+    <div class="sidebar-topbar">
+      <div class="brand">Office <span>Scheduler</span></div>
+      <div class="month-nav">
+        <button onclick="changeMonth(-1)" title="Previous month">&#8249;</button>
+        <span id="month-label"></span>
+        <button onclick="changeMonth(1)" title="Next month">&#8250;</button>
+      </div>
+      <button class="settings-btn" id="settings-btn" onclick="toggleSettings()" title="Settings">&#9881;</button>
+    </div>
+
+    <!-- Collapsible on mobile, always visible on desktop -->
+    <div class="sidebar-collapsible" id="sidebar-collapsible">
+
+      <hr class="side-divider" />
+
+      <!-- Person blocks: side-by-side on mobile via wrapper -->
+      <div class="people-row-mobile">
+        <!-- Vipin -->
+        <div class="person-block">
+          <div class="person-head vipin">Vipin</div>
+          <div class="person-rows">
+            <div class="prow"><span class="pk">Leaves</span><span class="pv" id="v-leaves">0</span></div>
+            <div class="prow"><span class="pk">Mandatory</span><span class="pv" id="v-mandatory">—</span></div>
+            <div class="prow">
+              <span class="pk">Done</span>
+              <div class="done-wrap">
+                <input type="number" id="v-done-input" value="0" min="0" max="23" onchange="onDoneManual('vipin')" />
+                <span id="v-done-badge" class="from-cal-badge" style="display:none">cal</span>
+              </div>
+            </div>
+            <div class="prow" id="v-need-row" style="display:none">
+              <span class="pk">Needed</span>
+              <span class="pv" id="v-need">—</span>
+            </div>
+          </div>
+          <div class="progress-bar-wrap" id="v-progress-wrap" style="display:none">
+            <div class="progress-track"><div class="progress-fill vipin" id="v-progress-fill" style="width:0%"></div></div>
+            <div class="progress-label" id="v-progress-label"></div>
+          </div>
+        </div>
+
+        <!-- Himangi -->
+        <div class="person-block">
+          <div class="person-head himangi">Himangi</div>
+          <div class="person-rows">
+            <div class="prow"><span class="pk">Leaves</span><span class="pv" id="h-leaves">0</span></div>
+            <div class="prow"><span class="pk">Mandatory</span><span class="pv" id="h-mandatory">—</span></div>
+            <div class="prow">
+              <span class="pk">Done</span>
+              <div class="done-wrap">
+                <input type="number" id="h-done-input" value="0" min="0" max="23" onchange="onDoneManual('himangi')" />
+                <span id="h-done-badge" class="from-cal-badge" style="display:none">cal</span>
+              </div>
+            </div>
+            <div class="prow" id="h-need-row" style="display:none">
+              <span class="pk">Needed</span>
+              <span class="pv" id="h-need">—</span>
+            </div>
+          </div>
+          <div class="progress-bar-wrap" id="h-progress-wrap" style="display:none">
+            <div class="progress-track"><div class="progress-fill himangi" id="h-progress-fill" style="width:0%"></div></div>
+            <div class="progress-label" id="h-progress-label"></div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="side-divider" />
+
+      <div class="legend">
+        <div class="leg-item"><span class="leg-sw hol"></span> Holiday</div>
+        <div class="leg-item"><span class="leg-sw leave"></span> Leave</div>
+        <div class="leg-item"><span class="leg-sw vipin"></span> Vipin goes</div>
+        <div class="leg-item"><span class="leg-sw himangi"></span> Himangi goes</div>
+        <div class="leg-item"><span class="leg-sw both"></span> Both go</div>
+      </div>
+
+      <button class="calc-btn" id="calc-btn" onclick="calculate()">Calculate Schedule</button>
+      <button class="reset-btn" onclick="resetState()">Reset all saved data</button>
+
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+    <div class="cal-title-row">
+      <h2 id="cal-heading"></h2>
+      <span class="cal-hint" style="font-size:.78rem;color:var(--muted)">Click any working day to mark it</span>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div id="results-section"></div>
+  </main>
+</div>
+
+<!-- Overlay -->
+<div id="overlay" onclick="closePopup()"></div>
+
+<!-- Day popup -->
+<div id="popup">
+  <div class="popup-hdr">
+    <span class="popup-title" id="pop-title"></span>
+    <button onclick="closePopup()">&#x2715;</button>
+  </div>
+
+  <div class="popup-sec">
+    <div class="popup-sec-label">Day type</div>
+    <label class="chk-row">
+      <input type="checkbox" id="pop-holiday" onchange="onHolChange()" />
+      <span>Public holiday</span>
+    </label>
+    <div id="pop-hol-name-wrap" style="display:none">
+      <input type="text" id="pop-hol-name" placeholder="Holiday name (optional)" oninput="savePopup()" />
+    </div>
+    <label class="chk-row">
+      <input type="checkbox" id="pop-v-leave" onchange="savePopup()" />
+      <span class="cv">Vipin on leave</span>
+    </label>
+    <label class="chk-row">
+      <input type="checkbox" id="pop-h-leave" onchange="savePopup()" />
+      <span class="ch">Himangi on leave</span>
+    </label>
+  </div>
+
+  <div class="popup-sec" id="pop-attend-sec" style="display:none">
+    <div class="popup-sec-label">Who was in office?</div>
+    <div class="attend-row">
+      <span class="ar-name cv">Vipin</span>
+      <div class="btn-grp">
+        <button class="attn-btn" id="pop-v-yes" onclick="setAttend('vipin', true)">Yes</button>
+        <button class="attn-btn" id="pop-v-no"  onclick="setAttend('vipin', false)">No</button>
+      </div>
+    </div>
+    <div class="attend-row">
+      <span class="ar-name ch">Himangi</span>
+      <div class="btn-grp">
+        <button class="attn-btn" id="pop-h-yes" onclick="setAttend('himangi', true)">Yes</button>
+        <button class="attn-btn" id="pop-h-no"  onclick="setAttend('himangi', false)">No</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-sec" id="pop-plan-sec" style="display:none">
+    <div class="popup-sec-label">Planning to go?</div>
+    <div class="attend-row">
+      <span class="ar-name cv">Vipin</span>
+      <div class="btn-grp">
+        <button class="attn-btn" id="pop-v-plan-yes" onclick="setPlanned('vipin', true)">Yes</button>
+        <button class="attn-btn" id="pop-v-plan-no"  onclick="setPlanned('vipin', false)">No</button>
+      </div>
+    </div>
+    <div class="attend-row">
+      <span class="ar-name ch">Himangi</span>
+      <div class="btn-grp">
+        <button class="attn-btn" id="pop-h-plan-yes" onclick="setPlanned('himangi', true)">Yes</button>
+        <button class="attn-btn" id="pop-h-plan-no"  onclick="setPlanned('himangi', false)">No</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="popup-clear" onclick="clearDay()">Clear day</button>
+</div>
+
+<script>
+  // ── Constants ──────────────────────────────────────────────────────────────
+  const TODAY = new Date();
+  const TODAY_STR = fmtDate(TODAY);
+
+  // Known public holidays
+  const PUBLIC_HOLIDAYS = {
+    "2026-08-26": "Eid",
+    "2026-08-28": "Raksha Bandhan",
+    "2026-10-02": "Gandhi Jayanti",
+    "2026-10-20": "Dussehra",
+    "2026-12-25": "Christmas",
+  };
+
+  const WEEKDAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const MONTH_NAMES = ["January","February","March","April","May","June",
+                       "July","August","September","October","November","December"];
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  // dayStates["YYYY-MM-DD"] = { holiday, holidayName, vipinLeave, himangiLeave,
+  //                              vipinAttended (true/false/null), himangiAttended }
+  const dayStates = {};
+  // assignment["YYYY-MM-DD"] = "vipin" | "himangi" | "both"  (set after calculate)
+  const assignments = {};
+
+  // Replace Jinja2 vars with JS — use current date
+  const _initDate = new Date();
+  let curYear  = _initDate.getFullYear();
+  let curMonth = _initDate.getMonth() + 1;  // 1-indexed
+  let popupDateStr = null;
+  // Per-month manual done overrides: { "2026-05": { vipin: 4, himangi: 2 }, … }
+  const doneOverrides = {};
+
+  // ── Persistence ───────────────────────────────────────────────────────────
+  const STORAGE_KEY = "office_sched_v1";
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        curYear, curMonth, dayStates, doneOverrides,
+      }));
+    } catch (e) { console.warn("Could not save state:", e); }
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s.curYear)    curYear  = s.curYear;
+      if (s.curMonth)   curMonth = s.curMonth;
+      if (s.dayStates)  Object.assign(dayStates, s.dayStates);
+      if (s.doneOverrides) Object.assign(doneOverrides, s.doneOverrides);
+    } catch (e) { console.warn("Could not load state:", e); }
+  }
+
+  function resetState() {
+    if (!confirm("Clear all saved data and start fresh?")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    for (const k of Object.keys(dayStates))   delete dayStates[k];
+    for (const k of Object.keys(assignments))  delete assignments[k];
+    curYear  = TODAY.getFullYear();
+    curMonth = TODAY.getMonth() + 1;
+    for (const k of Object.keys(doneOverrides)) delete doneOverrides[k];
+    document.getElementById("v-done-input").value = 0;
+    document.getElementById("h-done-input").value = 0;
+    document.getElementById("v-need-row").style.display    = "none";
+    document.getElementById("h-need-row").style.display    = "none";
+    document.getElementById("v-progress-wrap").style.display = "none";
+    document.getElementById("h-progress-wrap").style.display = "none";
+    document.getElementById("results-section").innerHTML   = "";
+    // Re-seed public holidays after wipe
+    for (const [ds, name] of Object.entries(PUBLIC_HOLIDAYS))
+      dayStates[ds] = { holiday: true, holidayName: name };
+    renderCalendar();
+    updateSidebar();
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  // Restore saved state first, then seed any PUBLIC_HOLIDAYS not yet touched
+  loadState();
+  for (const [ds, name] of Object.entries(PUBLIC_HOLIDAYS)) {
+    if (!dayStates[ds]) dayStates[ds] = { holiday: true, holidayName: name };
+  }
+
+  renderCalendar();
+  updateSidebar();
+
+  // ── Date helpers ──────────────────────────────────────────────────────────
+  function fmtDate(d) {
+    return d.toISOString().split("T")[0];
+  }
+  function makeDate(y, m, d) {
+    return new Date(y, m - 1, d);
+  }
+  function daysInMonth(y, m) {
+    return new Date(y, m, 0).getDate();
+  }
+  function firstWeekday(y, m) {
+    // 0=Sun…6=Sat → convert to Mon=0…Sun=6
+    const raw = new Date(y, m - 1, 1).getDay();
+    return (raw + 6) % 7;
+  }
+  function dateStr(y, m, d) {
+    return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+  }
+  function isPastOrToday(ds) { return ds <= TODAY_STR; }
+
+  // ── Mobile sidebar toggle ─────────────────────────────────────────────────
+  function toggleSettings() {
+    const body = document.getElementById("sidebar-collapsible");
+    const btn  = document.getElementById("settings-btn");
+    const open = body.classList.toggle("open");
+    btn.classList.toggle("open", open);
+    btn.textContent = open ? "✕" : "⚙";
+  }
+
+  // ── Month navigation ──────────────────────────────────────────────────────
+  function changeMonth(delta) {
+    curMonth += delta;
+    if (curMonth > 12) { curMonth = 1;  curYear++; }
+    if (curMonth < 1)  { curMonth = 12; curYear--; }
+    for (const k of Object.keys(assignments)) delete assignments[k];
+    document.getElementById("results-section").innerHTML = "";
+    renderCalendar();
+    updateSidebar();
+    saveState();
+  }
+
+  // ── Calendar render ───────────────────────────────────────────────────────
+  function renderCalendar() {
+    const grid = document.getElementById("cal-grid");
+    document.getElementById("cal-heading").textContent = `${MONTH_NAMES[curMonth-1]} ${curYear}`;
+    document.getElementById("month-label").textContent  = `${MONTH_NAMES[curMonth-1].slice(0,3)} ${curYear}`;
+
+    let html = WEEKDAYS.map(d => `<div class="cal-head">${d}</div>`).join("");
+
+    const offset = firstWeekday(curYear, curMonth);
+    for (let i = 0; i < offset; i++) html += `<div class="cal-cell empty"></div>`;
+
+    const last = daysInMonth(curYear, curMonth);
+    for (let day = 1; day <= last; day++) {
+      const ds    = dateStr(curYear, curMonth, day);
+      const jsDay = makeDate(curYear, curMonth, day);
+      const dow   = (jsDay.getDay() + 6) % 7;  // Mon=0…Sun=6
+      const isWknd = dow >= 5;
+
+      if (isWknd) {
+        html += `<div class="cal-cell weekend"><div class="cell-top"><span class="cell-num">${day}</span></div></div>`;
+        continue;
+      }
+
+      const st  = dayStates[ds] || {};
+      const asgn = assignments[ds];
+      const past  = ds < TODAY_STR;
+      const today = ds === TODAY_STR;
+
+      // Background class
+      let bgCls = "working";
+      if (st.holiday) bgCls = "holiday";
+      else if (st.vipinLeave && st.himangiLeave) bgCls = "both-leave";
+      else if (st.vipinLeave)   bgCls = "vipin-leave";
+      else if (st.himangiLeave) bgCls = "himangi-leave";
+
+      const pastCls  = past  ? " past"  : "";
+      const todayCls = today ? " today" : "";
+
+      // Leave flags (top-right)
+      let flags = "";
+      if (!st.holiday) {
+        if (st.vipinLeave)   flags += `<span class="flag vl">VL</span>`;
+        if (st.himangiLeave) flags += `<span class="flag hl">HL</span>`;
+      }
+
+      // Holiday name
+      const holName = st.holiday && st.holidayName
+        ? `<div class="cell-hol-name">${st.holidayName}</div>` : "";
+
+      // Bottom: assignment badge OR attendance marks OR plan marks
+      let bottom = "";
+      if (asgn) {
+        bottom += `<span class="assign-badge ${asgn}">${asgn === "both" ? "Both" : asgn === "vipin" ? "V" : "H"}</span>`;
+      } else if (!past && !today) {
+        // No assignment yet — show plan marks if set
+        const vp = st.vipinPlanned === true, hp = st.himangiPlanned === true;
+        if (vp && hp) bottom += `<span class="plan-mark bp">V+H</span>`;
+        else if (vp)  bottom += `<span class="plan-mark vp">V</span>`;
+        else if (hp)  bottom += `<span class="plan-mark hp">H</span>`;
+      }
+      if (past || today) {
+        if (st.vipinAttended === true)    bottom += `<span class="att-mark v-yes">V&#10003;</span>`;
+        if (st.vipinAttended === false)   bottom += `<span class="att-mark v-no">V&#10007;</span>`;
+        if (st.himangiAttended === true)  bottom += `<span class="att-mark h-yes">H&#10003;</span>`;
+        if (st.himangiAttended === false) bottom += `<span class="att-mark h-no">H&#10007;</span>`;
+      }
+
+      html += `
+        <div class="cal-cell ${bgCls}${pastCls}${todayCls}" onclick="openPopup('${ds}', event)">
+          <div class="cell-top">
+            <span class="cell-num">${day}</span>
+            <div class="cell-flags">${flags}</div>
+          </div>
+          ${holName}
+          <div class="cell-bottom">${bottom}</div>
+        </div>`;
+    }
+
+    grid.innerHTML = html;
+  }
+
+  // ── Sidebar counters ──────────────────────────────────────────────────────
+  function countForMonth(pred) {
+    let n = 0;
+    const last = daysInMonth(curYear, curMonth);
+    for (let d = 1; d <= last; d++) {
+      const ds = dateStr(curYear, curMonth, d);
+      const st = dayStates[ds];
+      if (st && pred(st, ds)) n++;
+    }
+    return n;
+  }
+
+  function updateSidebar() {
+    const vLeaves = countForMonth(st => st.vipinLeave   && !st.holiday);
+    const hLeaves = countForMonth(st => st.himangiLeave && !st.holiday);
+    const vAtt    = countForMonth((st, ds) => st.vipinAttended   === true && isPastOrToday(ds));
+    const hAtt    = countForMonth((st, ds) => st.himangiAttended === true && isPastOrToday(ds));
+
+    document.getElementById("v-leaves").textContent = vLeaves;
+    document.getElementById("h-leaves").textContent = hLeaves;
+
+    // Done count: calendar attendance wins if any marked; else this month's manual override
+    const mk = `${curYear}-${String(curMonth).padStart(2,"00")}`;
+    const vOverride = doneOverrides[mk]?.vipin   ?? 0;
+    const hOverride = doneOverrides[mk]?.himangi ?? 0;
+    const vDone = vAtt > 0 ? vAtt : vOverride;
+    const hDone = hAtt > 0 ? hAtt : hOverride;
+
+    // Always sync inputs to the current month's value (resets correctly on month change)
+    const vInput = document.getElementById("v-done-input");
+    const hInput = document.getElementById("h-done-input");
+    vInput.value = vDone;
+    hInput.value = hDone;
+    document.getElementById("v-done-badge").style.display = vAtt > 0 ? "" : "none";
+    document.getElementById("h-done-badge").style.display = hAtt > 0 ? "" : "none";
+  }
+
+  function onDoneManual(person) {
+    const mk  = `${curYear}-${String(curMonth).padStart(2,"0")}`;
+    const val = parseInt(document.getElementById(`${person[0]}-done-input`).value) || 0;
+    if (!doneOverrides[mk]) doneOverrides[mk] = {};
+    doneOverrides[mk][person] = val;
+    saveState();
+  }
+
+  // ── Popup ─────────────────────────────────────────────────────────────────
+  function openPopup(ds, event) {
+    popupDateStr = ds;
+    const st = dayStates[ds] || {};
+    const jsDay = new Date(ds + "T00:00:00");
+    const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][jsDay.getDay()];
+    const dayNum = parseInt(ds.split("-")[2]);
+
+    document.getElementById("pop-title").textContent = `${dayName}, ${dayNum} ${MONTH_NAMES[curMonth-1]}`;
+
+    // Day type checkboxes
+    document.getElementById("pop-holiday").checked = !!st.holiday;
+    document.getElementById("pop-v-leave").checked = !!st.vipinLeave;
+    document.getElementById("pop-h-leave").checked = !!st.himangiLeave;
+
+    const nameWrap = document.getElementById("pop-hol-name-wrap");
+    nameWrap.style.display = st.holiday ? "" : "none";
+    document.getElementById("pop-hol-name").value = st.holidayName || "";
+
+    // Attendance section: past or today only
+    document.getElementById("pop-attend-sec").style.display = isPastOrToday(ds) ? "" : "none";
+    refreshAttendBtns(st);
+
+    // Plan section: future dates only
+    const isFuture = ds > TODAY_STR;
+    document.getElementById("pop-plan-sec").style.display = isFuture ? "" : "none";
+    if (isFuture) {
+      // Disable plan toggles for people blocked by leave or holiday
+      const vBlocked = !!(st.vipinLeave || st.holiday);
+      const hBlocked = !!(st.himangiLeave || st.holiday);
+      ["pop-v-plan-yes","pop-v-plan-no"].forEach(id => document.getElementById(id).disabled = vBlocked);
+      ["pop-h-plan-yes","pop-h-plan-no"].forEach(id => document.getElementById(id).disabled = hBlocked);
+      refreshPlanBtns(st);
+    }
+
+    // Position popup: bottom sheet on mobile, near click on desktop
+    const popup = document.getElementById("popup");
+    popup.style.display = "block";
+    if (window.innerWidth > 768) {
+      const W = popup.offsetWidth, H = popup.offsetHeight;
+      let left = event.clientX + 12, top = event.clientY + 12;
+      if (left + W > window.innerWidth  - 10) left = event.clientX - W - 12;
+      if (top  + H > window.innerHeight - 10) top  = event.clientY - H - 12;
+      popup.style.left = Math.max(8, left) + "px";
+      popup.style.top  = Math.max(8, top)  + "px";
+    } else {
+      popup.style.left = "";
+      popup.style.top  = "";
+    }
+
+    document.getElementById("overlay").style.display = "block";
+    event.stopPropagation();
+  }
+
+  function refreshAttendBtns(st) {
+    document.getElementById("pop-v-yes").className = "attn-btn" + (st.vipinAttended === true  ? " active-yes" : "");
+    document.getElementById("pop-v-no" ).className = "attn-btn" + (st.vipinAttended === false ? " active-no"  : "");
+    document.getElementById("pop-h-yes").className = "attn-btn" + (st.himangiAttended === true  ? " active-yes" : "");
+    document.getElementById("pop-h-no" ).className = "attn-btn" + (st.himangiAttended === false ? " active-no"  : "");
+  }
+
+  function refreshPlanBtns(st) {
+    document.getElementById("pop-v-plan-yes").className = "attn-btn" + (st.vipinPlanned === true  ? " active-yes" : "");
+    document.getElementById("pop-v-plan-no" ).className = "attn-btn" + (st.vipinPlanned === false ? " active-no"  : "");
+    document.getElementById("pop-h-plan-yes").className = "attn-btn" + (st.himangiPlanned === true  ? " active-yes" : "");
+    document.getElementById("pop-h-plan-no" ).className = "attn-btn" + (st.himangiPlanned === false ? " active-no"  : "");
+  }
+
+  function setPlanned(person, val) {
+    if (!popupDateStr) return;
+    if (!dayStates[popupDateStr]) dayStates[popupDateStr] = {};
+    const st = dayStates[popupDateStr];
+    const key = person === "vipin" ? "vipinPlanned" : "himangiPlanned";
+    st[key] = st[key] === val ? null : val;  // toggle same value clears it
+    refreshPlanBtns(st);
+    renderCalendar();
+    saveState();
+  }
+
+  function closePopup() {
+    document.getElementById("popup").style.display   = "none";
+    document.getElementById("overlay").style.display = "none";
+    popupDateStr = null;
+  }
+
+  function onHolChange() {
+    document.getElementById("pop-hol-name-wrap").style.display =
+      document.getElementById("pop-holiday").checked ? "" : "none";
+    savePopup();
+  }
+
+  function savePopup() {
+    if (!popupDateStr) return;
+    if (!dayStates[popupDateStr]) dayStates[popupDateStr] = {};
+    const st = dayStates[popupDateStr];
+    st.holiday      = document.getElementById("pop-holiday").checked;
+    st.holidayName  = document.getElementById("pop-hol-name").value.trim();
+    st.vipinLeave   = document.getElementById("pop-v-leave").checked;
+    st.himangiLeave = document.getElementById("pop-h-leave").checked;
+    // Clear plans for anyone now blocked by leave or holiday
+    if (st.holiday)      { st.vipinPlanned = null; st.himangiPlanned = null; }
+    if (st.vipinLeave)   { st.vipinPlanned = null; }
+    if (st.himangiLeave) { st.himangiPlanned = null; }
+    // Re-sync disabled state of plan buttons while popup is open
+    if (popupDateStr > TODAY_STR) {
+      ["pop-v-plan-yes","pop-v-plan-no"].forEach(id =>
+        document.getElementById(id).disabled = !!(st.vipinLeave || st.holiday));
+      ["pop-h-plan-yes","pop-h-plan-no"].forEach(id =>
+        document.getElementById(id).disabled = !!(st.himangiLeave || st.holiday));
+      refreshPlanBtns(st);
+    }
+    renderCalendar();
+    updateSidebar();
+    saveState();
+  }
+
+  function setAttend(person, val) {
+    if (!popupDateStr) return;
+    if (!dayStates[popupDateStr]) dayStates[popupDateStr] = {};
+    const st = dayStates[popupDateStr];
+    const key = person === "vipin" ? "vipinAttended" : "himangiAttended";
+    // Toggle: clicking same button again clears
+    st[key] = st[key] === val ? null : val;
+    refreshAttendBtns(st);
+    renderCalendar();
+    updateSidebar();
+    saveState();
+  }
+
+  function clearDay() {
+    if (!popupDateStr) return;
+    // Restore public holiday if it was pre-filled
+    const original = PUBLIC_HOLIDAYS[popupDateStr];
+    if (original) {
+      dayStates[popupDateStr] = { holiday: true, holidayName: original };
+    } else {
+      delete dayStates[popupDateStr];
+    }
+    delete assignments[popupDateStr];
+    closePopup();
+    renderCalendar();
+    updateSidebar();
+    saveState();
+  }
+
+  // ── Scheduling Logic (ported from core.py) ────────────────────────────────
+
+  const _MANDATORY_THRESHOLDS = [
+    [9.5, 6], [7.5, 7], [6.0, 8], [4.0, 9],
+    [2.5, 10], [1.0, 11], [0.0, 12],
+  ];
+
+  function mandatoryDays(totalAbsent) {
+    for (const [threshold, days] of _MANDATORY_THRESHOLDS) {
+      if (totalAbsent >= threshold) return days;
+    }
+    return 12;
+  }
+
+  function workingDaysInMonth(year, month, holidayDateStrs) {
+    // Returns sorted array of YYYY-MM-DD strings (weekdays, excluding holidays)
+    const holidays = new Set(holidayDateStrs || []);
+    const result = [];
+    const lastDay = new Date(year, month, 0).getDate(); // month is 1-indexed; Date(y, m, 0) = last day of that month
+    for (let d = 1; d <= lastDay; d++) {
+      const ds  = dateStr(year, month, d);
+      const dow = new Date(year, month - 1, d).getDay(); // 0=Sun, 6=Sat
+      if (dow !== 0 && dow !== 6 && !holidays.has(ds)) {
+        result.push(ds);
+      }
+    }
+    return result;
+  }
+
+  function pickEvenly(pool, n) {
+    if (n <= 0 || pool.length === 0) return [];
+    if (n >= pool.length) return [...pool];
+    const step = pool.length / n;
+    return Array.from({ length: n }, (_, i) => pool[Math.floor(i * step)]);
+  }
+
+  function _schedule(remainingDays, vipinBlockedArr, himangiBlockedArr, vipinNeed, himangiNeed) {
+    const vBlocked = new Set(vipinBlockedArr);
+    const hBlocked = new Set(himangiBlockedArr);
+
+    const vipinAvail   = remainingDays.filter(d => !vBlocked.has(d));
+    const himangiAvail = remainingDays.filter(d => !hBlocked.has(d));
+    const bothAvail    = remainingDays.filter(d => !vBlocked.has(d) && !hBlocked.has(d));
+
+    // Minimum forced overlap
+    const fo  = vipinNeed + himangiNeed - vipinAvail.length - himangiAvail.length + bothAvail.length;
+    const cap = (vipinNeed && himangiNeed) ? Math.min(vipinNeed, himangiNeed) : 0;
+    const forcedOverlap = Math.max(0, Math.min(fo, cap, bothAvail.length));
+
+    // Sort bothAvail: Fridays first (JS getDay() === 5 is Friday), then chronologically
+    const bothSorted = [...bothAvail].sort((a, b) => {
+      const aFri = new Date(a + "T00:00:00").getDay() === 5 ? 0 : 1;
+      const bFri = new Date(b + "T00:00:00").getDay() === 5 ? 0 : 1;
+      return aFri !== bFri ? aFri - bFri : (a < b ? -1 : a > b ? 1 : 0);
+    });
+
+    const overlap    = bothSorted.slice(0, forcedOverlap);
+    const overlapSet = new Set(overlap);
+
+    const vipinDays   = new Set(overlap);
+    const himangiDays = new Set(overlap);
+    const vRemain = vipinNeed   - forcedOverlap;
+    const hRemain = himangiNeed - forcedOverlap;
+
+    const himangiAvailSet = new Set(himangiAvail);
+    const vipinAvailSet   = new Set(vipinAvail);
+
+    const vOnly      = vipinAvail.filter(d => !himangiAvailSet.has(d));
+    const hOnly      = himangiAvail.filter(d => !vipinAvailSet.has(d));
+    const bothRemain = bothAvail.filter(d => !overlapSet.has(d));
+
+    const vFromExcl = Math.min(vRemain, vOnly.length);
+    const hFromExcl = Math.min(hRemain, hOnly.length);
+    const vFromBoth = vRemain - vFromExcl;
+    const hFromBoth = hRemain - hFromExcl;
+
+    for (const d of pickEvenly(vOnly, vFromExcl)) vipinDays.add(d);
+    for (const d of pickEvenly(hOnly, hFromExcl)) himangiDays.add(d);
+
+    // Himangi picks first from both_remain; Vipin gets whatever's left
+    const hBothDays  = new Set(pickEvenly(bothRemain, hFromBoth));
+    const vBothPool  = bothRemain.filter(d => !hBothDays.has(d));
+    for (const d of hBothDays)               himangiDays.add(d);
+    for (const d of pickEvenly(vBothPool, vFromBoth)) vipinDays.add(d);
+
+    return [Array.from(vipinDays).sort(), Array.from(himangiDays).sort()];
+  }
+
+  function computeSchedule({
+    month, year,
+    holiday_days         = [],
+    vipin_leave_days     = [],
+    himangi_leave_days   = [],
+    vipin_attended_days  = [],
+    himangi_attended_days = [],
+    vipin_planned_days   = [],
+    himangi_planned_days = [],
+    vipin_done_manual    = 0,
+    himangi_done_manual  = 0,
+  }) {
+    const today = fmtDate(new Date());
+
+    // Convert array of day-of-month numbers to Set of date strings, weekdays only
+    function toDates(dayNums) {
+      const result = new Set();
+      for (const n of (dayNums || [])) {
+        const day = parseInt(n);
+        if (isNaN(day) || day < 1 || day > 31) continue;
+        const ds  = dateStr(year, month, day);
+        const dow = new Date(year, month - 1, day).getDay();
+        if (dow !== 0 && dow !== 6) result.add(ds);
+      }
+      return result;
+    }
+
+    const holDates = toDates(holiday_days);
+
+    let vLeave = toDates(vipin_leave_days);
+    for (const d of holDates) vLeave.delete(d);
+
+    let hLeave = toDates(himangi_leave_days);
+    for (const d of holDates) hLeave.delete(d);
+
+    const vAttended = toDates(vipin_attended_days);
+    const hAttended = toDates(himangi_attended_days);
+
+    const allWorking     = workingDaysInMonth(year, month, [...holDates]);
+    const allWorkingSet  = new Set(allWorking);
+    const pastWorking    = allWorking.filter(d => d < today);
+    const remainingWorking = allWorking.filter(d => d > today);  // strictly after today
+    const remainingSet   = new Set(remainingWorking);
+
+    const vipinAbsent   = holDates.size + vLeave.size;
+    const himangiAbsent = holDates.size + hLeave.size;
+
+    const vipinMandatory   = mandatoryDays(vipinAbsent);
+    const himangiMandatory = mandatoryDays(himangiAbsent);
+
+    // Done: calendar attendance supersedes manual when any days are marked
+    const vDoneCal = [...vAttended].filter(d => allWorkingSet.has(d)).length;
+    const hDoneCal = [...hAttended].filter(d => allWorkingSet.has(d)).length;
+    let vipinDone   = Math.max(vDoneCal, vipin_done_manual);
+    let himangiDone = Math.max(hDoneCal, himangi_done_manual);
+    vipinDone   = Math.min(vipinDone,   vipinMandatory);
+    himangiDone = Math.min(himangiDone, himangiMandatory);
+
+    const vipinNeed   = Math.max(0, vipinMandatory   - vipinDone);
+    const himangiNeed = Math.max(0, himangiMandatory - himangiDone);
+
+    // Planned future office days — filtered to valid remaining working days
+    let vPlanned = toDates(vipin_planned_days);
+    for (const d of vLeave)   vPlanned.delete(d);
+    for (const d of holDates) vPlanned.delete(d);
+    vPlanned = new Set([...vPlanned].filter(d => remainingSet.has(d)));
+
+    let hPlanned = toDates(himangi_planned_days);
+    for (const d of hLeave)   hPlanned.delete(d);
+    for (const d of holDates) hPlanned.delete(d);
+    hPlanned = new Set([...hPlanned].filter(d => remainingSet.has(d)));
+
+    // Lock planned days first; schedule only the remaining gap
+    const vStillNeed = Math.max(0, vipinNeed   - vPlanned.size);
+    const hStillNeed = Math.max(0, himangiNeed - hPlanned.size);
+
+    const alreadyPlanned = new Set([...vPlanned, ...hPlanned]);
+    const daysForAlgo    = remainingWorking.filter(d => !alreadyPlanned.has(d));
+
+    const [addVipin, addHimangi] = _schedule(
+      daysForAlgo, [...vLeave], [...hLeave], vStillNeed, hStillNeed
+    );
+
+    const vipinSet   = new Set([...vPlanned, ...addVipin]);
+    const himangiSet = new Set([...hPlanned, ...addHimangi]);
+    const overlap    = [...vipinSet].filter(d => himangiSet.has(d)).sort();
+
+    const plannedDates = new Set([...vPlanned, ...hPlanned]);
+
+    const assignmentMap = {};
+    const allAssigned   = new Set([...vipinSet, ...himangiSet]);
+    for (const d of allAssigned) {
+      const v = vipinSet.has(d), h = himangiSet.has(d);
+      assignmentMap[d] = (v && h) ? "both" : (v ? "vipin" : "himangi");
+    }
+
+    const assigned = [];
+    for (const d of [...allAssigned].sort()) {
+      const v = vipinSet.has(d), h = himangiSet.has(d);
+      const jsDate   = new Date(d + "T00:00:00");
+      const dow      = jsDate.getDay();
+      const dayNum   = parseInt(d.split("-")[2]);
+      const monthIdx = parseInt(d.split("-")[1]) - 1;
+      const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dow];
+      assigned.push({
+        date:      d,
+        display:   `${String(dayNum).padStart(2,"0")} ${MONTH_NAMES[monthIdx].slice(0,3)} ${d.split("-")[0]}`,
+        weekday:   dayName,
+        who:       (v && h) ? "Both" : (v ? "Vipin" : "Himangi"),
+        is_friday: dow === 5,
+        is_past:   d < today,
+        planned:   plannedDates.has(d),
+      });
+    }
+
+    const vShort = vStillNeed > daysForAlgo.filter(d => !vLeave.has(d)).length;
+    const hShort = hStillNeed > daysForAlgo.filter(d => !hLeave.has(d)).length;
+
+    return {
+      month, year,
+      month_name:        MONTH_NAMES[month - 1],
+      today,
+      total_working:     allWorking.length,
+      past_working:      pastWorking.length,
+      remaining_working: remainingWorking.length,
+      num_holidays:      holDates.size,
+      vipin: {
+        leaves:             vLeave.size,
+        absent:             vipinAbsent,
+        mandatory:          vipinMandatory,
+        done:               vipinDone,
+        done_from_calendar: vDoneCal > 0,
+        need:               vipinNeed,
+        planned:            vPlanned.size,
+        short:              vShort,
+      },
+      himangi: {
+        leaves:             hLeave.size,
+        absent:             himangiAbsent,
+        mandatory:          himangiMandatory,
+        done:               himangiDone,
+        done_from_calendar: hDoneCal > 0,
+        need:               himangiNeed,
+        planned:            hPlanned.size,
+        short:              hShort,
+      },
+      overlap_count:      overlap.length,
+      overlap_on_fridays: overlap.filter(d => new Date(d + "T00:00:00").getDay() === 5).length,
+      planned_dates:      [...plannedDates].sort(),
+      assignment_map:     assignmentMap,
+      assigned,
+    };
+  }
+
+  // ── Calculate (static — no server needed) ─────────────────────────────────
+  function calculate() {
+    const btn = document.getElementById("calc-btn");
+    btn.disabled = true;
+    btn.textContent = "Calculating…";
+
+    // Collect day numbers per category for current month
+    const holDays = [], vLeaveDays = [], hLeaveDays = [],
+          vAttDays = [], hAttDays = [], vPlanDays = [], hPlanDays = [];
+    const last = daysInMonth(curYear, curMonth);
+    for (let d = 1; d <= last; d++) {
+      const ds = dateStr(curYear, curMonth, d);
+      const st = dayStates[ds];
+      if (!st) continue;
+      if (st.holiday)              holDays.push(d);
+      if (st.vipinLeave)           vLeaveDays.push(d);
+      if (st.himangiLeave)         hLeaveDays.push(d);
+      if (st.vipinAttended   === true) vAttDays.push(d);
+      if (st.himangiAttended === true) hAttDays.push(d);
+      if (st.vipinPlanned    === true) vPlanDays.push(d);
+      if (st.himangiPlanned  === true) hPlanDays.push(d);
+    }
+
+    const vDoneManual = parseInt(document.getElementById("v-done-input").value) || 0;
+    const hDoneManual = parseInt(document.getElementById("h-done-input").value) || 0;
+
+    try {
+      const data = computeSchedule({
+        month: curMonth, year: curYear,
+        holiday_days:           holDays,
+        vipin_leave_days:       vLeaveDays,
+        himangi_leave_days:     hLeaveDays,
+        vipin_attended_days:    vAttDays,
+        himangi_attended_days:  hAttDays,
+        vipin_planned_days:     vPlanDays,
+        himangi_planned_days:   hPlanDays,
+        vipin_done_manual:      vAttDays.length > 0 ? 0 : vDoneManual,
+        himangi_done_manual:    hAttDays.length > 0 ? 0 : hDoneManual,
+      });
+
+      // Store assignments and re-render
+      for (const k of Object.keys(assignments)) delete assignments[k];
+      Object.assign(assignments, data.assignment_map);
+      renderCalendar();
+      renderResults(data);
+    } catch (e) {
+      document.getElementById("results-section").innerHTML =
+        `<div class="warn-strip">Error: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Calculate Schedule";
+    }
+  }
+
+  // ── Results render ────────────────────────────────────────────────────────
+  function renderResults(d) {
+    const v = d.vipin, h = d.himangi;
+
+    // Update sidebar with mandatory + need
+    document.getElementById("v-mandatory").textContent = v.mandatory;
+    document.getElementById("h-mandatory").textContent = h.mandatory;
+
+    const vNeedEl = document.getElementById("v-need");
+    const hNeedEl = document.getElementById("h-need");
+    vNeedEl.textContent = v.need;
+    hNeedEl.textContent = h.need;
+    vNeedEl.className = "pv" + (v.short ? " warn" : " ok");
+    hNeedEl.className = "pv" + (h.short ? " warn" : " ok");
+    document.getElementById("v-need-row").style.display = "";
+    document.getElementById("h-need-row").style.display = "";
+
+    // Progress bars
+    const vPct = Math.round(((v.done + v.need) / v.mandatory) * 100);
+    const hPct = Math.round(((h.done + h.need) / h.mandatory) * 100);
+    document.getElementById("v-progress-fill").style.width = Math.min(100, vPct) + "%";
+    document.getElementById("h-progress-fill").style.width = Math.min(100, hPct) + "%";
+    document.getElementById("v-progress-label").textContent = `${v.done} done · ${v.need} to go`;
+    document.getElementById("h-progress-label").textContent = `${h.done} done · ${h.need} to go`;
+    document.getElementById("v-progress-wrap").style.display = "";
+    document.getElementById("h-progress-wrap").style.display = "";
+
+    // Warnings
+    let warns = "";
+    if (v.short) warns += `<div class="warn-strip">Vipin needs ${v.need} more days but only ${d.remaining_working} working days remain.</div>`;
+    if (h.short) warns += `<div class="warn-strip">Himangi needs ${h.need} more days but only ${d.remaining_working} working days remain.</div>`;
+
+    // Stats
+    const stats = `
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="s-label">Working days</div>
+          <div class="s-value">${d.total_working}</div>
+          <div class="s-sub">${d.past_working} past · ${d.remaining_working} remaining</div>
+        </div>
+        <div class="stat-card">
+          <div class="s-label">Public holidays</div>
+          <div class="s-value">${d.num_holidays}</div>
+          <div class="s-sub">this month</div>
+        </div>
+        <div class="stat-card">
+          <div class="s-label">Shared days</div>
+          <div class="s-value">${d.overlap_count}</div>
+          <div class="s-sub">${d.overlap_on_fridays} on Fridays</div>
+        </div>
+      </div>`;
+
+    // Assigned list
+    const rows = d.assigned.map(a => {
+      const friBadge     = a.is_friday ? `<span class="fri-badge">FRI</span>` : "";
+      const plannedBadge = a.planned   ? `<span class="fri-badge" style="background:#ede9fe;color:#6d28d9">PINNED</span>` : "";
+      return `
+        <div class="a-item ${a.who.toLowerCase()} ${a.is_past ? "past" : ""}">
+          <span class="a-date">${a.display}</span>
+          <span class="a-wday">${a.weekday}</span>
+          ${friBadge}${plannedBadge}
+          <span class="a-who">${a.who}</span>
+        </div>`;
+    }).join("");
+
+    const assignedCard = d.assigned.length
+      ? `<div class="assigned-card"><h3>Scheduled Office Days</h3><div class="assigned-list">${rows}</div></div>`
+      : `<div class="assigned-card"><h3>Scheduled Office Days</h3><p style="color:var(--muted);font-size:.85rem">No days to schedule — all done!</p></div>`;
+
+    document.getElementById("results-section").innerHTML =
+      `<div class="results-section">${warns}${stats}${assignedCard}</div>`;
+  }
+</script>
+</body>
+</html>
