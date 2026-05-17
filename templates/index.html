@@ -500,10 +500,123 @@
     }
     .popup-clear:hover { background: #fee2e2; border-color: #fca5a5; color: var(--red); }
 
-    @media (max-width: 700px) {
+    /* ── Sidebar topbar / collapsible (desktop: transparent wrappers) ── */
+    .sidebar-topbar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .settings-btn { display: none; }          /* hidden on desktop */
+    .sidebar-collapsible { display: contents; } /* children join sidebar flex on desktop */
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
       .shell { grid-template-columns: 1fr; }
-      .sidebar { position: static; height: auto; }
-      .stats-row { grid-template-columns: 1fr 1fr; }
+
+      /* Sidebar becomes a sticky top bar */
+      .sidebar {
+        position: sticky;
+        top: 0;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 2px 12px rgba(0,0,0,.07);
+        padding: 0;
+        gap: 0;
+        z-index: 50;
+      }
+
+      /* Topbar: brand + month nav + toggle in one row */
+      .sidebar-topbar {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 14px;
+      }
+      .sidebar-topbar .brand { flex: 0 0 auto; font-size: .95rem; }
+      .sidebar-topbar .month-nav {
+        flex: 1;
+        background: transparent;
+        padding: 0;
+        justify-content: center;
+      }
+      .settings-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        font-size: 1rem;
+        cursor: pointer;
+        color: var(--muted);
+        transition: background .12s;
+      }
+      .settings-btn:hover, .settings-btn.open { background: var(--vipin-bg); color: var(--vipin); border-color: var(--vipin); }
+
+      /* Collapsible body: hidden by default, slides open */
+      .sidebar-collapsible {
+        display: none;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 14px 16px;
+        border-top: 1px solid var(--border);
+        max-height: 65vh;
+        overflow-y: auto;
+      }
+      .sidebar-collapsible.open { display: flex; }
+
+      /* Two-column person layout on mobile */
+      .people-row-mobile {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      /* Main area */
+      .main { padding: 12px 10px 40px; }
+      .cal-title-row { margin-bottom: 10px; }
+      .cal-hint { display: none; }
+      .cal-grid { gap: 3px; }
+
+      /* Smaller calendar cells */
+      .cal-cell { min-height: 52px; padding: 5px 3px 4px; border-radius: 6px; border-width: 1px; }
+      .cell-num { font-size: .78rem; }
+      .cell-hol-name { font-size: .52rem; }
+      .flag { font-size: .48rem; padding: 1px 2px; }
+      .assign-badge { font-size: .55rem; padding: 1px 3px; }
+      .att-mark, .plan-mark { font-size: .55rem; padding: 1px 3px; }
+      .cal-head { font-size: .65rem; padding-bottom: 5px; }
+
+      /* Popup as bottom sheet */
+      #popup {
+        width: 100% !important;
+        left: 0 !important;
+        top: auto !important;
+        bottom: 0 !important;
+        border-radius: 18px 18px 0 0;
+        max-height: 82vh;
+        overflow-y: auto;
+      }
+
+      /* Results */
+      .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat-card { padding: 12px; }
+      .stat-card .s-value { font-size: 1.3rem; }
+      .assigned-card { padding: 14px; }
+      .a-item { flex-wrap: wrap; gap: 6px; }
+      .a-wday { min-width: auto; }
+      .a-date { min-width: auto; }
+
+      /* Legend compact */
+      .legend { gap: 6px; }
+      .leg-item { font-size: .7rem; }
+
+      /* Calc + reset buttons full width */
+      .calc-btn, .reset-btn { width: 100%; }
     }
   </style>
 </head>
@@ -512,83 +625,95 @@
 <div class="shell">
   <!-- ── Sidebar ── -->
   <aside class="sidebar">
-    <div class="brand">Office <span>Scheduler</span></div>
 
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)" title="Previous month">&#8249;</button>
-      <span id="month-label"></span>
-      <button onclick="changeMonth(1)" title="Next month">&#8250;</button>
+    <!-- Always-visible topbar: brand + month nav + mobile settings toggle -->
+    <div class="sidebar-topbar">
+      <div class="brand">Office <span>Scheduler</span></div>
+      <div class="month-nav">
+        <button onclick="changeMonth(-1)" title="Previous month">&#8249;</button>
+        <span id="month-label"></span>
+        <button onclick="changeMonth(1)" title="Next month">&#8250;</button>
+      </div>
+      <button class="settings-btn" id="settings-btn" onclick="toggleSettings()" title="Settings">&#9881;</button>
     </div>
 
-    <hr class="side-divider" />
+    <!-- Collapsible on mobile, always visible on desktop -->
+    <div class="sidebar-collapsible" id="sidebar-collapsible">
 
-    <!-- Vipin -->
-    <div class="person-block">
-      <div class="person-head vipin">Vipin</div>
-      <div class="person-rows">
-        <div class="prow"><span class="pk">Leaves (this month)</span><span class="pv" id="v-leaves">0</span></div>
-        <div class="prow"><span class="pk">Mandatory days</span><span class="pv" id="v-mandatory">—</span></div>
-        <div class="prow">
-          <span class="pk">Done</span>
-          <div class="done-wrap">
-            <input type="number" id="v-done-input" value="0" min="0" max="23" onchange="onDoneManual('vipin')" />
-            <span id="v-done-badge" class="from-cal-badge" style="display:none">cal</span>
+      <hr class="side-divider" />
+
+      <!-- Person blocks: side-by-side on mobile via wrapper -->
+      <div class="people-row-mobile">
+        <!-- Vipin -->
+        <div class="person-block">
+          <div class="person-head vipin">Vipin</div>
+          <div class="person-rows">
+            <div class="prow"><span class="pk">Leaves</span><span class="pv" id="v-leaves">0</span></div>
+            <div class="prow"><span class="pk">Mandatory</span><span class="pv" id="v-mandatory">—</span></div>
+            <div class="prow">
+              <span class="pk">Done</span>
+              <div class="done-wrap">
+                <input type="number" id="v-done-input" value="0" min="0" max="23" onchange="onDoneManual('vipin')" />
+                <span id="v-done-badge" class="from-cal-badge" style="display:none">cal</span>
+              </div>
+            </div>
+            <div class="prow" id="v-need-row" style="display:none">
+              <span class="pk">Needed</span>
+              <span class="pv" id="v-need">—</span>
+            </div>
+          </div>
+          <div class="progress-bar-wrap" id="v-progress-wrap" style="display:none">
+            <div class="progress-track"><div class="progress-fill vipin" id="v-progress-fill" style="width:0%"></div></div>
+            <div class="progress-label" id="v-progress-label"></div>
           </div>
         </div>
-        <div class="prow" id="v-need-row" style="display:none">
-          <span class="pk">Still needed</span>
-          <span class="pv" id="v-need">—</span>
-        </div>
-      </div>
-      <div class="progress-bar-wrap" id="v-progress-wrap" style="display:none">
-        <div class="progress-track"><div class="progress-fill vipin" id="v-progress-fill" style="width:0%"></div></div>
-        <div class="progress-label" id="v-progress-label"></div>
-      </div>
-    </div>
 
-    <!-- Himangi -->
-    <div class="person-block">
-      <div class="person-head himangi">Himangi</div>
-      <div class="person-rows">
-        <div class="prow"><span class="pk">Leaves (this month)</span><span class="pv" id="h-leaves">0</span></div>
-        <div class="prow"><span class="pk">Mandatory days</span><span class="pv" id="h-mandatory">—</span></div>
-        <div class="prow">
-          <span class="pk">Done</span>
-          <div class="done-wrap">
-            <input type="number" id="h-done-input" value="0" min="0" max="23" onchange="onDoneManual('himangi')" />
-            <span id="h-done-badge" class="from-cal-badge" style="display:none">cal</span>
+        <!-- Himangi -->
+        <div class="person-block">
+          <div class="person-head himangi">Himangi</div>
+          <div class="person-rows">
+            <div class="prow"><span class="pk">Leaves</span><span class="pv" id="h-leaves">0</span></div>
+            <div class="prow"><span class="pk">Mandatory</span><span class="pv" id="h-mandatory">—</span></div>
+            <div class="prow">
+              <span class="pk">Done</span>
+              <div class="done-wrap">
+                <input type="number" id="h-done-input" value="0" min="0" max="23" onchange="onDoneManual('himangi')" />
+                <span id="h-done-badge" class="from-cal-badge" style="display:none">cal</span>
+              </div>
+            </div>
+            <div class="prow" id="h-need-row" style="display:none">
+              <span class="pk">Needed</span>
+              <span class="pv" id="h-need">—</span>
+            </div>
+          </div>
+          <div class="progress-bar-wrap" id="h-progress-wrap" style="display:none">
+            <div class="progress-track"><div class="progress-fill himangi" id="h-progress-fill" style="width:0%"></div></div>
+            <div class="progress-label" id="h-progress-label"></div>
           </div>
         </div>
-        <div class="prow" id="h-need-row" style="display:none">
-          <span class="pk">Still needed</span>
-          <span class="pv" id="h-need">—</span>
-        </div>
       </div>
-      <div class="progress-bar-wrap" id="h-progress-wrap" style="display:none">
-        <div class="progress-track"><div class="progress-fill himangi" id="h-progress-fill" style="width:0%"></div></div>
-        <div class="progress-label" id="h-progress-label"></div>
+
+      <hr class="side-divider" />
+
+      <div class="legend">
+        <div class="leg-item"><span class="leg-sw hol"></span> Holiday</div>
+        <div class="leg-item"><span class="leg-sw leave"></span> Leave</div>
+        <div class="leg-item"><span class="leg-sw vipin"></span> Vipin goes</div>
+        <div class="leg-item"><span class="leg-sw himangi"></span> Himangi goes</div>
+        <div class="leg-item"><span class="leg-sw both"></span> Both go</div>
       </div>
+
+      <button class="calc-btn" id="calc-btn" onclick="calculate()">Calculate Schedule</button>
+      <button class="reset-btn" onclick="resetState()">Reset all saved data</button>
+
     </div>
-
-    <hr class="side-divider" />
-
-    <div class="legend">
-      <div class="leg-item"><span class="leg-sw hol"></span> Holiday</div>
-      <div class="leg-item"><span class="leg-sw leave"></span> Leave</div>
-      <div class="leg-item"><span class="leg-sw vipin"></span> Vipin goes</div>
-      <div class="leg-item"><span class="leg-sw himangi"></span> Himangi goes</div>
-      <div class="leg-item"><span class="leg-sw both"></span> Both go</div>
-    </div>
-
-    <button class="calc-btn" id="calc-btn" onclick="calculate()">Calculate Schedule</button>
-    <button class="reset-btn" onclick="resetState()">Reset all saved data</button>
   </aside>
 
   <!-- ── Main ── -->
   <main class="main">
     <div class="cal-title-row">
       <h2 id="cal-heading"></h2>
-      <span style="font-size:.78rem;color:var(--muted)">Click any working day to mark it</span>
+      <span class="cal-hint" style="font-size:.78rem;color:var(--muted)">Click any working day to mark it</span>
     </div>
     <div class="cal-grid" id="cal-grid"></div>
     <div id="results-section"></div>
@@ -769,6 +894,15 @@
   }
   function isPastOrToday(ds) { return ds <= TODAY_STR; }
 
+  // ── Mobile sidebar toggle ─────────────────────────────────────────────────
+  function toggleSettings() {
+    const body = document.getElementById("sidebar-collapsible");
+    const btn  = document.getElementById("settings-btn");
+    const open = body.classList.toggle("open");
+    btn.classList.toggle("open", open);
+    btn.textContent = open ? "✕" : "⚙";
+  }
+
   // ── Month navigation ──────────────────────────────────────────────────────
   function changeMonth(delta) {
     curMonth += delta;
@@ -942,15 +1076,20 @@
       refreshPlanBtns(st);
     }
 
-    // Position popup near click, keep in viewport
+    // Position popup: bottom sheet on mobile, near click on desktop
     const popup = document.getElementById("popup");
     popup.style.display = "block";
-    const W = popup.offsetWidth, H = popup.offsetHeight;
-    let left = event.clientX + 12, top = event.clientY + 12;
-    if (left + W > window.innerWidth  - 10) left = event.clientX - W - 12;
-    if (top  + H > window.innerHeight - 10) top  = event.clientY - H - 12;
-    popup.style.left = Math.max(8, left) + "px";
-    popup.style.top  = Math.max(8, top)  + "px";
+    if (window.innerWidth > 768) {
+      const W = popup.offsetWidth, H = popup.offsetHeight;
+      let left = event.clientX + 12, top = event.clientY + 12;
+      if (left + W > window.innerWidth  - 10) left = event.clientX - W - 12;
+      if (top  + H > window.innerHeight - 10) top  = event.clientY - H - 12;
+      popup.style.left = Math.max(8, left) + "px";
+      popup.style.top  = Math.max(8, top)  + "px";
+    } else {
+      popup.style.left = "";
+      popup.style.top  = "";
+    }
 
     document.getElementById("overlay").style.display = "block";
     event.stopPropagation();
