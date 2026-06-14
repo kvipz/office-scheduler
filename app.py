@@ -33,6 +33,8 @@ def calculate():
             himangi_attended_days=int_list("himangi_attended_days"),
             vipin_planned_days=int_list("vipin_planned_days"),
             himangi_planned_days=int_list("himangi_planned_days"),
+            vipin_wfh_days=int_list("vipin_wfh_days"),
+            himangi_wfh_days=int_list("himangi_wfh_days"),
             vipin_done_manual=int(data.get("vipin_done_manual", 0)),
             himangi_done_manual=int(data.get("himangi_done_manual", 0)),
         )

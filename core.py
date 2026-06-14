@@ -8,6 +8,11 @@ _MANDATORY_THRESHOLDS = [
     (2.5, 10), (1.0, 11), (0.0, 12),
 ]
 
+# Soft weekday preferences (0=Mon … 6=Sun). "Good to have but not mandatory" —
+# explicit Planning to Go choices (Yes = office, No = WFH) always take priority.
+VIPIN_PREFERRED_WEEKDAYS   = {0, 2, 4}  # Mon, Wed, Fri
+HIMANGI_PREFERRED_WEEKDAYS = {1, 3, 4}  # Tue, Thu, Fri
+
 
 def mandatory_days(total_absent: float) -> int:
     for threshold, days in _MANDATORY_THRESHOLDS:
@@ -36,11 +41,28 @@ def _pick_evenly(pool: list, n: int) -> list:
     return [pool[int(i * step)] for i in range(n)]
 
 
+def _pick_with_preference(pool: list, n: int, preferred_weekdays: set) -> list:
+    """Pick n days from pool, favouring days whose weekday is in preferred_weekdays.
+    Falls back to evenly-spaced picks from the rest of the pool when there
+    aren't enough preferred days to cover n."""
+    if n <= 0 or not pool:
+        return []
+    if n >= len(pool):
+        return list(pool)
+    preferred = [d for d in pool if d.weekday() in preferred_weekdays]
+    other     = [d for d in pool if d.weekday() not in preferred_weekdays]
+    if len(preferred) >= n:
+        return _pick_evenly(preferred, n)
+    rest = _pick_evenly(other, n - len(preferred))
+    return sorted(preferred + rest)
+
+
 def _schedule(remaining_days, vipin_blocked, himangi_blocked, vipin_need, himangi_need):
     """
     Assign office days minimising overlap.
     Forced overlaps go on Fridays first, then other days.
-    vipin_blocked / himangi_blocked: dates each person cannot attend (their leave days).
+    vipin_blocked / himangi_blocked: dates each person cannot/will-not attend
+    (leave days plus any "Work from home" preference days).
     """
     vipin_avail  = sorted(d for d in remaining_days if d not in vipin_blocked)
     himangi_avail = sorted(d for d in remaining_days if d not in himangi_blocked)
@@ -72,18 +94,19 @@ def _schedule(remaining_days, vipin_blocked, himangi_blocked, vipin_need, himang
     v_from_both = v_remain - v_from_excl
     h_from_both = h_remain - h_from_excl
 
-    for d in _pick_evenly(v_only, v_from_excl):
+    for d in _pick_with_preference(v_only, v_from_excl, VIPIN_PREFERRED_WEEKDAYS):
         vipin_days.add(d)
-    for d in _pick_evenly(h_only, h_from_excl):
+    for d in _pick_with_preference(h_only, h_from_excl, HIMANGI_PREFERRED_WEEKDAYS):
         himangi_days.add(d)
 
-    # Split both_remain: Himangi picks first (evenly spaced), Vipin gets the rest.
-    # This guarantees Himangi always finds enough days even when she needs more.
-    h_both_days = set(_pick_evenly(both_remain, h_from_both))
+    # Split both_remain: Himangi picks first (favouring her preferred weekdays),
+    # Vipin gets the rest. This guarantees Himangi always finds enough days
+    # even when she needs more.
+    h_both_days = set(_pick_with_preference(both_remain, h_from_both, HIMANGI_PREFERRED_WEEKDAYS))
     v_both_pool = [d for d in both_remain if d not in h_both_days]
     for d in h_both_days:
         himangi_days.add(d)
-    for d in _pick_evenly(v_both_pool, v_from_both):
+    for d in _pick_with_preference(v_both_pool, v_from_both, VIPIN_PREFERRED_WEEKDAYS):
         vipin_days.add(d)
 
     return sorted(vipin_days), sorted(himangi_days)
@@ -97,8 +120,10 @@ def compute(
     himangi_leave_days=None,
     vipin_attended_days=None,   # list of day-of-month ints (past days attended)
     himangi_attended_days=None,
-    vipin_planned_days=None,    # list of day-of-month ints (future committed days)
+    vipin_planned_days=None,    # list of day-of-month ints (future committed office days)
     himangi_planned_days=None,
+    vipin_wfh_days=None,        # list of day-of-month ints (future WFH preference days)
+    himangi_wfh_days=None,
     vipin_done_manual: int = 0,
     himangi_done_manual: int = 0,
 ) -> dict:
@@ -150,6 +175,11 @@ def compute(
     v_planned = (to_dates(vipin_planned_days)   - v_leave - hol_dates) & remaining_set
     h_planned = (to_dates(himangi_planned_days) - h_leave - hol_dates) & remaining_set
 
+    # WFH preference days — person does not want to be scheduled in office on
+    # these future working days (a personal choice, not an absence/leave).
+    v_wfh = to_dates(vipin_wfh_days)   & remaining_set
+    h_wfh = to_dates(himangi_wfh_days) & remaining_set
+
     # Lock planned days first; schedule only the remaining gap
     v_still_need = max(0, vipin_need   - len(v_planned))
     h_still_need = max(0, himangi_need - len(h_planned))
@@ -158,7 +188,10 @@ def compute(
     already_planned = v_planned | h_planned
     days_for_algo   = [d for d in remaining_working if d not in already_planned]
 
-    add_vipin, add_himangi = _schedule(days_for_algo, v_leave, h_leave, v_still_need, h_still_need)
+    v_blocked = v_leave | v_wfh
+    h_blocked = h_leave | h_wfh
+
+    add_vipin, add_himangi = _schedule(days_for_algo, v_blocked, h_blocked, v_still_need, h_still_need)
 
     vipin_set   = v_planned | set(add_vipin)
     himangi_set = h_planned | set(add_himangi)
@@ -201,7 +234,7 @@ def compute(
             "done_from_calendar": v_done_cal > 0,
             "need":               vipin_need,
             "planned":            len(v_planned),
-            "short": v_still_need > len([d for d in days_for_algo if d not in v_leave]),
+            "short": v_still_need > len([d for d in days_for_algo if d not in v_blocked]),
         },
         "himangi": {
             "leaves":             len(h_leave),
@@ -211,7 +244,7 @@ def compute(
             "done_from_calendar": h_done_cal > 0,
             "need":               himangi_need,
             "planned":            len(h_planned),
-            "short": h_still_need > len([d for d in days_for_algo if d not in h_leave]),
+            "short": h_still_need > len([d for d in days_for_algo if d not in h_blocked]),
         },
         "overlap_count":      len(overlap),
         "overlap_on_fridays": sum(1 for d in overlap if d.weekday() == 4),

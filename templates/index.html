@@ -323,6 +323,7 @@
     .plan-mark.vp { color: var(--vipin);   border-color: var(--vipin); }
     .plan-mark.hp { color: var(--himangi); border-color: var(--himangi); }
     .plan-mark.bp { color: var(--both);    border-color: var(--both); }
+    .plan-mark.wfh { color: var(--muted);  border-color: var(--border); }
 
     /* ── Results ── */
     .results-section {
@@ -768,7 +769,7 @@
   </div>
 
   <div class="popup-sec" id="pop-plan-sec" style="display:none">
-    <div class="popup-sec-label">Planning to go?</div>
+    <div class="popup-sec-label">Planning to go? <span style="font-weight:400;text-transform:none;letter-spacing:normal">(No = WFH)</span></div>
     <div class="attend-row">
       <span class="ar-name cv">Vipin</span>
       <div class="btn-grp">
@@ -974,6 +975,9 @@
         if (vp && hp) bottom += `<span class="plan-mark bp">V+H</span>`;
         else if (vp)  bottom += `<span class="plan-mark vp">V</span>`;
         else if (hp)  bottom += `<span class="plan-mark hp">H</span>`;
+        // WFH preferences (Planning to go = No) — shown alongside any plan mark above
+        if (st.vipinPlanned   === false) bottom += `<span class="plan-mark wfh">V WFH</span>`;
+        if (st.himangiPlanned === false) bottom += `<span class="plan-mark wfh">H WFH</span>`;
       }
       if (past || today) {
         if (st.vipinAttended === true)    bottom += `<span class="att-mark v-yes">V&#10003;</span>`;
@@ -1194,7 +1198,8 @@
 
     // Collect day numbers per category for current month
     const holDays = [], vLeaveDays = [], hLeaveDays = [],
-          vAttDays = [], hAttDays = [], vPlanDays = [], hPlanDays = [];
+          vAttDays = [], hAttDays = [], vPlanDays = [], hPlanDays = [],
+          vWfhDays = [], hWfhDays = [];
     const last = daysInMonth(curYear, curMonth);
     for (let d = 1; d <= last; d++) {
       const ds = dateStr(curYear, curMonth, d);
@@ -1205,8 +1210,10 @@
       if (st.himangiLeave)         hLeaveDays.push(d);
       if (st.vipinAttended   === true) vAttDays.push(d);
       if (st.himangiAttended === true) hAttDays.push(d);
-      if (st.vipinPlanned    === true) vPlanDays.push(d);
-      if (st.himangiPlanned  === true) hPlanDays.push(d);
+      if (st.vipinPlanned    === true)  vPlanDays.push(d);
+      if (st.himangiPlanned  === true)  hPlanDays.push(d);
+      if (st.vipinPlanned    === false) vWfhDays.push(d);
+      if (st.himangiPlanned  === false) hWfhDays.push(d);
     }
 
     const vDoneManual = parseInt(document.getElementById("v-done-input").value) || 0;
@@ -1225,6 +1232,8 @@
           himangi_attended_days: hAttDays,
           vipin_planned_days:    vPlanDays,
           himangi_planned_days:  hPlanDays,
+          vipin_wfh_days:        vWfhDays,
+          himangi_wfh_days:      hWfhDays,
           vipin_done_manual:     vAttDays.length > 0 ? 0 : vDoneManual,
           himangi_done_manual:   hAttDays.length > 0 ? 0 : hDoneManual,
         }),
